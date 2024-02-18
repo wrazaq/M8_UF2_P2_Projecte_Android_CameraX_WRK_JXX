@@ -34,12 +34,12 @@ public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
     ImageButton cameraBtn, recordBtn, flipBtn, toggleFlash;
     private PreviewView previewView;
-    int cameraFacing = CameraSelector.LENS_FACING_BACK;
+    int cameraOrientation = CameraSelector.LENS_FACING_BACK;
     private final ActivityResultLauncher<String> activityResultLauncher = registerForActivityResult(new ActivityResultContracts.RequestPermission(), new ActivityResultCallback<Boolean>() {
         @Override
         public void onActivityResult(Boolean result) {
             if (result) {
-                startCamera(cameraFacing);
+                startCamera(cameraOrientation);
             }
         }
     });
@@ -58,21 +58,18 @@ public class MainActivity extends AppCompatActivity {
         if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             activityResultLauncher.launch(Manifest.permission.CAMERA);
         } else {
-            startCamera(cameraFacing);
+            startCamera(cameraOrientation);
         }
-        flipBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (cameraFacing == CameraSelector.LENS_FACING_BACK) {
-                    cameraFacing = CameraSelector.LENS_FACING_FRONT;
-                } else {
-                    cameraFacing = CameraSelector.LENS_FACING_BACK;
-                }
-                startCamera(cameraFacing);
+        flipBtn.setOnClickListener(v -> {
+            if (cameraOrientation == CameraSelector.LENS_FACING_BACK) {
+                cameraOrientation = CameraSelector.LENS_FACING_FRONT;
+            } else {
+                cameraOrientation = CameraSelector.LENS_FACING_BACK;
             }
+            startCamera(cameraOrientation);
         });
     }
-    public void startCamera(int cameraFacing) {
+    public void startCamera(int cameraOrientation) {
         ListenableFuture<ProcessCameraProvider> listenableFuture = ProcessCameraProvider.getInstance(this);
 
         listenableFuture.addListener(() -> {
@@ -86,25 +83,15 @@ public class MainActivity extends AppCompatActivity {
                         .build();
 
                 CameraSelector cameraSelector = new CameraSelector.Builder()
-                        .requireLensFacing(cameraFacing)
+                        .requireLensFacing(cameraOrientation)
                         .build();
 
                 cameraProvider.unbindAll();
 
                 Camera camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture);
 
-                cameraBtn.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        takePicture(imageCapture);
-                    }
-                });
-                toggleFlash.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        setFlashIcon(camera);
-                    }
-                });
+                cameraBtn.setOnClickListener(v -> takePicture(imageCapture));
+                toggleFlash.setOnClickListener(v -> setFlashIcon(camera));
 
                 preview.setSurfaceProvider(previewView.getSurfaceProvider());
 
@@ -119,24 +106,15 @@ public class MainActivity extends AppCompatActivity {
         imageCapture.takePicture(outputFileOptions, Executors.newCachedThreadPool(), new ImageCapture.OnImageSavedCallback() {
             @Override
             public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(MainActivity.this, "Image saved at: " + file.getPath(), Toast.LENGTH_SHORT).show();
-                        startCamera(cameraFacing);
-                    }
+                runOnUiThread(() -> {
+                    Toast.makeText(MainActivity.this, "Image saved at: " + file.getPath(), Toast.LENGTH_SHORT).show();
+                    startCamera(cameraOrientation);
                 });
             }
             @Override
             public void onError(@NonNull ImageCaptureException exception) {
-                Log.e("MainActivity", "Error capturing image: " + exception.getMessage());
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(MainActivity.this, "Failed to save: " + exception.getMessage(), Toast.LENGTH_SHORT).show();
-                        startCamera(cameraFacing);
-                    }
-                });
+                    Toast.makeText(MainActivity.this, "Failed to save: " + exception.getMessage(), Toast.LENGTH_SHORT).show();
+                    startCamera(cameraOrientation);
             }
         });
     }
@@ -150,12 +128,7 @@ public class MainActivity extends AppCompatActivity {
                 toggleFlash.setImageResource(R.drawable.baseline_flash_off_24);
             }
         } else {
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    Toast.makeText(MainActivity.this, "Flash is not available", Toast.LENGTH_SHORT).show();
-                }
-            });
+           Toast.makeText(MainActivity.this, "Flash is not available", Toast.LENGTH_SHORT).show();
         }
     }
 }
