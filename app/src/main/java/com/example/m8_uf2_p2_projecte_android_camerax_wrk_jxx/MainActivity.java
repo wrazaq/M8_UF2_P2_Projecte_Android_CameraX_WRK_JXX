@@ -28,6 +28,7 @@ import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
@@ -87,7 +88,14 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onClick(View v) {
-               captureVideo();
+                if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                    activityResultLauncher.launch(Manifest.permission.CAMERA);
+                }else if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                    activityResultLauncher.launch(Manifest.permission.RECORD_AUDIO);
+                }else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P && ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED){
+                    activityResultLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE);
+                }
+                    captureVideo();
             }
         });
 
@@ -119,7 +127,7 @@ public class MainActivity extends AppCompatActivity {
         ContentValues contentValues = new ContentValues();
         contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
         contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4");
-        contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + File.separator);
+        contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, "Movies/Videos");
 
         MediaStoreOutputOptions options = new MediaStoreOutputOptions.Builder(getContentResolver(), MediaStore.Video.Media.EXTERNAL_CONTENT_URI).setContentValues(contentValues).build();
 
@@ -263,7 +271,7 @@ public class MainActivity extends AppCompatActivity {
                 toggleFlash.setImageResource(R.drawable.baseline_flash_off_24);
             }
         } else {
-           Toast.makeText(MainActivity.this, "Flash is not available", Toast.LENGTH_SHORT).show();
+            Toast.makeText(MainActivity.this, "Flash is not available", Toast.LENGTH_SHORT).show();
         }
     }
 }
