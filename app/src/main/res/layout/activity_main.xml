@@ -32,7 +32,7 @@
         android:layout_alignParentBottom="true"
         android:layout_marginEnd="120sp"
         android:layout_marginBottom="40sp"
-        android:src="@drawable/baseline_videocam_24"/>
+        android:src="@drawable/record_circle"/>
     <ImageButton
         android:id="@+id/toggleFlash"
         android:layout_width="40sp"

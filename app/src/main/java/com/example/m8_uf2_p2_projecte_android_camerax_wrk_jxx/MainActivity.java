@@ -11,8 +11,17 @@ import androidx.camera.core.ImageCapture;
 import androidx.camera.core.ImageCaptureException;
 import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
+import androidx.camera.video.MediaStoreOutputOptions;
+import androidx.camera.video.Quality;
+import androidx.camera.video.QualitySelector;
+import androidx.camera.video.Recorder;
+import androidx.camera.video.Recording;
+import androidx.camera.video.VideoCapture;
+import androidx.camera.video.VideoRecordEvent;
 import androidx.camera.view.PreviewView;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.util.Consumer;
 
 import android.Manifest;
 import android.content.ContentResolver;
@@ -37,12 +46,18 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Locale;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
     ImageButton cameraBtn, recordBtn, flipBtn, toggleFlash;
+    ExecutorService service;
+    Recording recording = null;
+    VideoCapture<Recorder> videoCapture = null;
     private PreviewView previewView;
     private ImageView previewImageView;
     int cameraOrientation = CameraSelector.LENS_FACING_BACK;
@@ -54,6 +69,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     });
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -67,11 +83,20 @@ public class MainActivity extends AppCompatActivity {
         toggleFlash = binding.toggleFlash;
         recordBtn = binding.recordBtn;
 
+        recordBtn.setOnClickListener(new View.OnClickListener() {
+
+            @Override
+            public void onClick(View v) {
+               captureVideo();
+            }
+        });
+
         if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             activityResultLauncher.launch(Manifest.permission.CAMERA);
         } else {
             startCamera(cameraOrientation);
         }
+
         flipBtn.setOnClickListener(v -> {
             if (cameraOrientation == CameraSelector.LENS_FACING_BACK) {
                 cameraOrientation = CameraSelector.LENS_FACING_FRONT;
@@ -81,6 +106,54 @@ public class MainActivity extends AppCompatActivity {
             startCamera(cameraOrientation);
         });
     }
+
+    private void captureVideo() {
+        recordBtn.setImageResource(R.drawable.record_circle_outline);
+        Recording recording1 = recording;
+        if (recording1 != null) {
+            recording1.stop();
+            recording = null;
+            return;
+        }
+        String name = new SimpleDateFormat("dd-MM-yyyy-HH", Locale.getDefault()).format(System.currentTimeMillis());
+        ContentValues contentValues = new ContentValues();
+        contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+        contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4");
+        contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + File.separator);
+
+        MediaStoreOutputOptions options = new MediaStoreOutputOptions.Builder(getContentResolver(), MediaStore.Video.Media.EXTERNAL_CONTENT_URI).setContentValues(contentValues).build();
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return;
+        }
+        recording = videoCapture.getOutput().prepareRecording(MainActivity.this, options).withAudioEnabled().start(ContextCompat.getMainExecutor(MainActivity.this), new Consumer<VideoRecordEvent>() {
+            @Override
+            public void accept(VideoRecordEvent videoRecordEvent) {
+                if (videoRecordEvent instanceof VideoRecordEvent.Start){
+                    recordBtn.setImageResource(R.drawable.record_circle);
+                }else if (videoRecordEvent instanceof  VideoRecordEvent.Finalize){
+                    if (((VideoRecordEvent.Finalize) videoRecordEvent).hasError()){
+
+                        Toast.makeText(MainActivity.this, "Video captured", Toast.LENGTH_SHORT).show();
+
+                    }else {
+                        recording.close();
+                        recording = null;
+                        Toast.makeText(MainActivity.this, "Error: " + ((VideoRecordEvent.Finalize) videoRecordEvent).getError(), Toast.LENGTH_SHORT).show();
+
+                    }
+                    recordBtn.setImageResource(R.drawable.record_circle);
+                }
+            }
+        });
+    }
     private void startCamera(int cameraOrientation) {
         ListenableFuture<ProcessCameraProvider> listenableFuture = ProcessCameraProvider.getInstance(this);
 
@@ -88,6 +161,10 @@ public class MainActivity extends AppCompatActivity {
             try {
                 ProcessCameraProvider cameraProvider = listenableFuture.get();
                 Preview preview = new Preview.Builder().build();
+
+                Recorder recorder = new Recorder.Builder().setQualitySelector(QualitySelector.from(Quality.HIGHEST)).build();
+
+                videoCapture = VideoCapture.withOutput(recorder);
 
                 ImageCapture imageCapture = new ImageCapture.Builder()
                         .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
@@ -166,6 +243,7 @@ public class MainActivity extends AppCompatActivity {
         Picasso.get()
                 .load(new File(imagePath))
                 .into(previewImageView);
+
 
         new Handler().postDelayed(() -> {
             previewImageView.setVisibility(View.GONE);
