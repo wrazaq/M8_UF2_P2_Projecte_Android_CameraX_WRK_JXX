@@ -1,6 +1,5 @@
 package com.example.m8_uf2_p2_projecte_android_camerax_wrk_jxx;
 
-import androidx.activity.result.ActivityResultCallback;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
@@ -50,24 +49,19 @@ import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Locale;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends AppCompatActivity {
     private ActivityMainBinding binding;
     ImageButton cameraBtn, recordBtn, flipBtn, toggleFlash;
-    ExecutorService service;
     Recording recording = null;
     VideoCapture<Recorder> videoCapture = null;
     private PreviewView previewView;
     private ImageView previewImageView;
     int cameraOrientation = CameraSelector.LENS_FACING_BACK;
-    private final ActivityResultLauncher<String> activityResultLauncher = registerForActivityResult(new ActivityResultContracts.RequestPermission(), new ActivityResultCallback<Boolean>() {
-        @Override
-        public void onActivityResult(Boolean result) {
-            if (result) {
-                startCamera(cameraOrientation);
-            }
+    private final ActivityResultLauncher<String> activityResultLauncher = registerForActivityResult(new ActivityResultContracts.RequestPermission(), result -> {
+        if (result) {
+            startCamera(cameraOrientation);
         }
     });
 
@@ -84,19 +78,15 @@ public class MainActivity extends AppCompatActivity {
         toggleFlash = binding.toggleFlash;
         recordBtn = binding.recordBtn;
 
-        recordBtn.setOnClickListener(new View.OnClickListener() {
-
-            @Override
-            public void onClick(View v) {
-                if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                    activityResultLauncher.launch(Manifest.permission.CAMERA);
-                }else if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                    activityResultLauncher.launch(Manifest.permission.RECORD_AUDIO);
-                }else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P && ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED){
-                    activityResultLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE);
-                }
-                    captureVideo();
+        recordBtn.setOnClickListener(v -> {
+            if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+                activityResultLauncher.launch(Manifest.permission.CAMERA);
+            } else if (ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                activityResultLauncher.launch(Manifest.permission.RECORD_AUDIO);
+            } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P && ActivityCompat.checkSelfPermission(MainActivity.this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                activityResultLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE);
             }
+            captureVideo();
         });
 
         if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
@@ -115,53 +105,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void captureVideo() {
-        recordBtn.setImageResource(R.drawable.record_circle_outline);
-        Recording recording1 = recording;
-        if (recording1 != null) {
-            recording1.stop();
-            recording = null;
-            return;
-        }
-        String name = new SimpleDateFormat("dd-MM-yyyy-HH", Locale.getDefault()).format(System.currentTimeMillis());
-        ContentValues contentValues = new ContentValues();
-        contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
-        contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4");
-        contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, "Movies/Videos");
-
-        MediaStoreOutputOptions options = new MediaStoreOutputOptions.Builder(getContentResolver(), MediaStore.Video.Media.EXTERNAL_CONTENT_URI).setContentValues(contentValues).build();
-
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        }
-        recording = videoCapture.getOutput().prepareRecording(MainActivity.this, options).withAudioEnabled().start(ContextCompat.getMainExecutor(MainActivity.this), new Consumer<VideoRecordEvent>() {
-            @Override
-            public void accept(VideoRecordEvent videoRecordEvent) {
-                if (videoRecordEvent instanceof VideoRecordEvent.Start){
-                    recordBtn.setImageResource(R.drawable.record_circle);
-                }else if (videoRecordEvent instanceof  VideoRecordEvent.Finalize){
-                    if (((VideoRecordEvent.Finalize) videoRecordEvent).hasError()){
-
-                        Toast.makeText(MainActivity.this, "Video captured", Toast.LENGTH_SHORT).show();
-
-                    }else {
-                        recording.close();
-                        recording = null;
-                        Toast.makeText(MainActivity.this, "Error: " + ((VideoRecordEvent.Finalize) videoRecordEvent).getError(), Toast.LENGTH_SHORT).show();
-
-                    }
-                    recordBtn.setImageResource(R.drawable.record_circle);
-                }
-            }
-        });
-    }
     private void startCamera(int cameraOrientation) {
         ListenableFuture<ProcessCameraProvider> listenableFuture = ProcessCameraProvider.getInstance(this);
 
@@ -185,7 +128,7 @@ public class MainActivity extends AppCompatActivity {
 
                 cameraProvider.unbindAll();
 
-                Camera camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture);
+                Camera camera = cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture, videoCapture);
 
                 cameraBtn.setOnClickListener(v -> takePicture(imageCapture));
                 toggleFlash.setOnClickListener(v -> setFlashIcon(camera));
@@ -197,6 +140,51 @@ public class MainActivity extends AppCompatActivity {
             }
         }, ContextCompat.getMainExecutor(this));
     }
+
+
+    private void captureVideo() {
+        recordBtn.setImageResource(R.drawable.record_circle_outline);
+        Recording recording1 = recording;
+        if (recording1 != null) {
+            stopRecording();
+            return;
+        }
+        String name = new SimpleDateFormat("dd-MM-yyyy-hh", Locale.getDefault()).format(System.currentTimeMillis());
+        ContentValues contentValues = new ContentValues();
+        contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+        contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4");
+        contentValues.put(MediaStore.MediaColumns.RELATIVE_PATH, "Movies/Videos");
+
+        MediaStoreOutputOptions options = new MediaStoreOutputOptions.Builder(getContentResolver(), MediaStore.Video.Media.EXTERNAL_CONTENT_URI).setContentValues(contentValues).build();
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        recording = videoCapture.getOutput().prepareRecording(MainActivity.this, options).withAudioEnabled().start(ContextCompat.getMainExecutor(MainActivity.this), new Consumer<VideoRecordEvent>() {
+            @Override
+            public void accept(VideoRecordEvent videoRecordEvent) {
+                if (videoRecordEvent instanceof VideoRecordEvent.Start) {
+                    recordBtn.setImageResource(R.drawable.record_circle_outline);
+                } else if (videoRecordEvent instanceof VideoRecordEvent.Finalize) {
+                    if (((VideoRecordEvent.Finalize) videoRecordEvent).hasError()) {
+                        Toast.makeText(MainActivity.this, "Error: " + ((VideoRecordEvent.Finalize) videoRecordEvent).getError(), Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(MainActivity.this, "Video captured", Toast.LENGTH_SHORT).show();
+                    }
+                    recordBtn.setImageResource(R.drawable.record_circle);
+                }
+            }
+        });
+    }
+
+    private void stopRecording() {
+        if (recording != null) {
+            recording.stop();
+            recording.close();
+            recording = null;
+        }
+    }
+
     private void takePicture(ImageCapture imageCapture) {
         final File file = new File(getExternalFilesDir(null), System.currentTimeMillis() + ".jpg");
         ImageCapture.OutputFileOptions outputFileOptions = new ImageCapture.OutputFileOptions.Builder(file).build();
@@ -258,8 +246,6 @@ public class MainActivity extends AppCompatActivity {
             startCamera(cameraOrientation);
         }, 10000);
     }
-
-
 
     private void setFlashIcon(Camera camera) {
         if (camera.getCameraInfo().hasFlashUnit()) {
